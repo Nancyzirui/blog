@@ -4,8 +4,17 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-
+// var db = require('./models/db');
 var routes = require('./routes/index');
+//引入数据库配置文件
+var setting = require('./setting');
+//临时存放一些数据
+var flash = require('connect-flash');
+//支持回话
+var session = require('express-session');
+//把回话保存在mongodb中去
+var Mongostore = require('connect-mongo')(session);
+
 
 var app = express();
 
@@ -21,6 +30,19 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 routes(app);
+//使用flash
+app.use(flash());
+//将session保存在MongoDb里面
+app.use(session({
+    secretL:"gzr",
+    key:setting.db,
+    cookie:{maxAge:30*24*60*1000},
+    store:new Mongostore({
+        url:'mongodb://localhost/gzr'
+    }),
+    resave:false,
+    saveUninitialized:true
+}))
 // app.use('/', index);
 
 // catch 404 and forward to error handler
