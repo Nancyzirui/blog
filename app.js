@@ -34,11 +34,11 @@ routes(app);
 app.use(flash());
 //将session保存在MongoDb里面
 app.use(session({
-    secretL:"gzr",
+    secret:"gzr",
     key:setting.db,
     cookie:{maxAge:30*24*60*1000},
     store:new Mongostore({
-        url:'mongodb://localhost/gzr'
+        url:'mongodb://localhost/gzrblog'
     }),
     resave:false,
     saveUninitialized:true
