@@ -29,7 +29,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-routes(app);
+
 //使用flash
 app.use(flash());
 //将session保存在MongoDb里面
@@ -38,13 +38,13 @@ app.use(session({
     key:setting.db,
     cookie:{maxAge:30*24*60*1000},
     store:new Mongostore({
-        url:'mongodb://localhost/gzrblog'
+        url:"mongodb://localhost/gzrblog"
     }),
     resave:false,
     saveUninitialized:true
 }))
 // app.use('/', index);
-
+routes(app);
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
   var err = new Error('Not Found');
