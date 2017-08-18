@@ -50,7 +50,7 @@ User.get = function(name,callback){
         if(err){
             return callback(err);
         }
-        db.collection('users',function(err,collection){
+        db.collection('user',function(err,collection){
             if(err){
                 mongo.close();
                 return callback(err);
