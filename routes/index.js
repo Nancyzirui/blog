@@ -2,6 +2,8 @@
 var crypto = require('crypto');
 //User对象操作类
 var User = require('../models/user');
+//Post对象操作类
+var Post = require('../models/post');
 function checkNotLogin(req,res,next){
     if(req.session.user){
         //用户已经登录了
@@ -19,14 +21,19 @@ function checkLogin(req,res,next) {
 }
 module.exports = function (app) {
     //首页的路由
-    app.get('/',function(req,res){
-        res.render('index',{
-            title:'首页',
-            user:req.session.user,
-            success:req.flash('success').toString(),
-            error:req.flash('error').toString()
+    app.get('/', function (req, res) {
+        Post.get(null, function (err, posts) {
+            if (err) {
+                posts = [];
+            }
+            res.render('index', {
+                title: '首页',
+                posts : posts,
+                user: req.session.user,
+                success: req.flash('success').toString(),
+                error: req.flash('error').toString()
+            })
         })
-        // res.send('hello world')
     })
     //注册页面
     app.get('/reg',checkNotLogin,function(req,res){
@@ -137,6 +144,16 @@ module.exports = function (app) {
     })
     //发表行为
     app.post('/post',checkLogin,function(req,res){
+        var currentUser = req.session.user;
+        var post = new Post(currentUser.name,req.body.title,req.body.post);
+        post.save(function(err){
+            if(err){
+                req.flash('error',err);
+                return res.redirect('/post');
+            }
+            req.flash('success','发表成功');
+            return res.redirect('/')
+        })
 
     })
     //退出
