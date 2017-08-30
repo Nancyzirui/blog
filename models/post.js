@@ -2,6 +2,8 @@
  * Created by Administrator on 2017/8/18.
  */
 var mongo = require('./db');
+//引入markdown
+var markdown = require('markdown').markdown;
 //name：发表文章的用户名
 //title：文章标题
 //post：文章内容
@@ -55,7 +57,7 @@ Post.prototype.save = function(callback){
     })
 }
 //读取文章列表
-Post.get = function(name,callback){
+Post.getAll = function(name,callback){
     mongo.open(function(err,db){
       if(err){
           return callback(err);
@@ -75,8 +77,42 @@ Post.get = function(name,callback){
                   if(err){
                       return callback(err);
                   }
+                  //加入markdown解析
+                  docs.forEach(function(doc){
+                      doc.post = markdown.toHTML(doc.post);
+                  });
                   callback(null,docs);
               })
       })
+    })
+}
+//查询一篇文章
+Post.getOne = function(name,minute,title,callback){
+    //1.打开数据库
+    mongo.open(function(err,db){
+        if(err){
+            return callback(err);
+        }
+        //2.读取posts集合
+        db.collection('posts',function(err,collection){
+            if(err){
+                mongo.close();
+                return callback(err);
+            }
+            //可以根据用户名、发表日期以及文章名进行查询
+            collection.findOne({
+                "name":name,
+                "time.minute":minute,
+                "title":title
+            },function(err,doc){
+                mongo.close();
+                if(err){
+                    return callback(err)
+                }
+                //解析markdown为HTML
+                doc.post = markdown.toHTML(doc.post);
+                callback(null,doc);//返回查询的一篇文章
+            })
+        })
     })
 }
