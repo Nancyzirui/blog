@@ -1,0 +1,35 @@
+
+<br>
+<div>
+    <span class="prepage">
+        <a href="?page=<%= page=1 %>">首页</a>
+        <% if(page <= 1) { %>
+             <a href="?page=<%= page %>">上一页</a>
+        <% } else { %>
+                <a href="?page=<%= page - 1 %>">上一页</a>
+                <% } %>
+        <% if(pagetotal >= 5) { %>
+            <% if( page < 3) { %>
+                <% loop(1, 5)%>
+            <% } else if( page >= 3 && page <= pagetotal - 2) { %>
+                <% loop(page - 2, page + 2)%>
+            <% } else { %>
+                <% loop(pagetotal - 4, pagetotal)%>
+            <% } %>
+        <% } else if(pagetotal < 5) { %>
+            <% loop(1, pagetotal)%>
+        <% } %>
+        <% function loop(start, end) { %>
+            <% for(var i = start; i <= end; i ++) { %>
+                <a href="?page=<%= i %>"><%= i %></a>
+            <% } %>
+        <% } %>
+
+        <% if(page == pagetotal) { %>
+        <a href="?page=<%= page %>">下一页</a>
+        <% } else { %>
+        <a href="?page=<%= page + 1 %>">下一页</a>
+        <% } %>
+        <a href="?page=<%= page=pagetotal-1 %>">末页</a>
+    </span>
+</div>

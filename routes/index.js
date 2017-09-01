@@ -4,6 +4,8 @@ var crypto = require('crypto');
 var User = require('../models/user');
 //Post对象操作类
 var Post = require('../models/post');
+//Comment对象操作类
+var Comment = require('../models/comment');
 var multer = require('multer');
 var storage = multer.diskStorage({
     destination:function(req,file,cb){
@@ -35,13 +37,24 @@ function checkLogin(req,res,next) {
 module.exports = function (app) {
     //首页的路由
     app.get('/', function (req, res) {
-        Post.getAll(null, function (err, posts) {
+        //如果有参数传递（page当前页数），就使用参数作为当前页数，如果没有，就是第一页
+        var page = parseInt(req.query.page) || 1;
+        Post.getTen(null,page, function (err, posts,total) {
             if (err) {
                 posts = [];
             }
             res.render('index', {
                 title: '首页',
-                posts : posts,
+                posts: posts,
+                //当前页数
+                page:page,
+                //总条数
+                total:total,
+                pagetotal: Math.ceil(total/2),
+                //判断他是否是第一页
+                isFirstPage:(page - 1) == 0,
+                //判断它是否是最后一页
+                isLastPage:((page - 1)* 5 +posts.length) == total,
                 user: req.session.user,
                 success: req.flash('success').toString(),
                 error: req.flash('error').toString()
@@ -49,28 +62,28 @@ module.exports = function (app) {
         })
     })
     //注册页面
-    app.get('/reg',checkNotLogin,function(req,res){
-    res.render('reg',{
-        title:'注册',
-        user:req.session.user,
-        success:req.flash('success').toString(),
-        error:req.flash('error').toString()
+    app.get('/reg', checkNotLogin, function (req, res) {
+        res.render('reg', {
+            title: '注册',
+            user: req.session.user,
+            success: req.flash('success').toString(),
+            error: req.flash('error').toString()
         })
     });
-    app.post('/reg',checkNotLogin,function(req,res){
+    app.post('/reg', checkNotLogin, function (req, res) {
         //收集一下 post请求发过来的注册用户的用户名、密码、邮箱
-    var name = req.body.name;
-    var password = req.body.password;
-    var password_re = req.body['password-repeat'];
-    var email = req.body.email;
-    // console.log(name);
-    // console.log(password);
-    // console.log(password_re);
-    // console.log(email);
+        var name = req.body.name;
+        var password = req.body.password;
+        var password_re = req.body['password-repeat'];
+        var email = req.body.email;
+        // console.log(name);
+        // console.log(password);
+        // console.log(password_re);
+        // console.log(email);
         //1.检查密码是否一致
-        if(password != password_re){
+        if (password != password_re) {
             //给出错误提示
-            req.flash('error','两次密码不一致');
+            req.flash('error', '两次密码不一致');
             //返回到注册页面去
             return res.redirect('/reg');
         }
@@ -80,157 +93,297 @@ module.exports = function (app) {
         // console.log(password);
         //3.实例化User类，赋值
         var newUser = new User({
-            name:name,
-            password:password,
-            email:email
+            name: name,
+            password: password,
+            email: email
         })
         //槛车用户名在数据中是否已经存在可，如果已经存在，用户是不能注册的.
-        User.get(newUser.name,function (err,user) {
-            if (err){
-                req.flash('error',err);
+        User.get(newUser.name, function (err, user) {
+            if (err) {
+                req.flash('error', err);
                 return res.redirect('/reg');
             }
             //用户名重复了
-            if(user){
-                req.flash('error','用户名不能重复');
+            if (user) {
+                req.flash('error', '用户名不能重复');
                 return res.redirect('/reg');
             }
             //保存到数据库中
-            newUser.save(function(err,user){
-                if(err){
-                    req.flash('error',err);
+            newUser.save(function (err, user) {
+                if (err) {
+                    req.flash('error', err);
                     return res.redirect('/reg');
                 }
                 //将用户的信息存放到session中去
                 req.session.user = newUser;
-                req.flash('success','注册成功');
+                req.flash('success', '注册成功');
                 return res.redirect('/');
             })
         })
         // console.dir(newUser);
     })
     //登录页面
-    app.get('/login',checkNotLogin,function(req,res){
-        res.render('login',{
-            title:'登录',
-            user:req.session.user,
-            success:req.flash('success').toString(),
-            error:req.flash('error').toString()
+    app.get('/login', checkNotLogin, function (req, res) {
+        res.render('login', {
+            title: '登录',
+            user: req.session.user,
+            success: req.flash('success').toString(),
+            error: req.flash('error').toString()
 
 
         })
     })
     //登录行为
-    app.post('/login',checkNotLogin,function(req,res){
+    app.post('/login', checkNotLogin, function (req, res) {
         var md5 = crypto.createHash('md5');
         var password = md5.update(req.body.password).digest('hex');
         //1.检查用户名是否存在
-        User.get(req.body.name,function (err,user) {
-            if(err){
-                req.flash('error',err);
+        User.get(req.body.name, function (err, user) {
+            if (err) {
+                req.flash('error', err);
                 return res.redirect('/login');
             }
-            if(!user){
-                req.flash('error','用户名不存在');
+            if (!user) {
+                req.flash('error', '用户名不存在');
                 return res.redirect('/login');
             }
             //判断密码是否一样，如果不一样，提示输入密码错误。
-            if(user.password != password){
-                req.flash('error','输入密码错误');
+            if (user.password != password) {
+                req.flash('error', '输入密码错误');
                 return res.redirect('/login');
             }
             //成功后，将用户信息存放入session中，保存，并提示登录成功，跳转首页
             req.session.user = user;
-            req.flash('success','登录成功');
+            req.flash('success', '登录成功');
             return res.redirect('/');
         })
     })
     //发表页面
-    app.get('/post',checkLogin,function(req,res){
-        res.render('post',{
-            title:'发布文章',
-            user:req.session.user,
-            success:req.flash('success').toString(),
-            error:req.flash('error').toString()
+    app.get('/post', checkLogin, function (req, res) {
+        res.render('post', {
+            title: '发布文章',
+            user: req.session.user,
+            success: req.flash('success').toString(),
+            error: req.flash('error').toString()
 
         })
     })
     //发表行为
-    app.post('/post',checkLogin,function(req,res){
+    app.post('/post', checkLogin, function (req,res) {
         var currentUser = req.session.user;
-        var post = new Post(currentUser.name,req.body.title,req.body.post);
-        post.save(function(err){
-            if(err){
-                req.flash('error',err);
+        var tags = [req.body.tag1,req.body.tag2,req.body.tag3];
+        var post = new Post(currentUser.name, req.body.title,tags, req.body.post);
+        post.save(function (err) {
+            if (err) {
+                req.flash('error', err);
                 return res.redirect('/post');
             }
-            req.flash('success','发表成功');
+            req.flash('success', '发表成功');
             return res.redirect('/')
         })
 
     })
     //退出
-    app.get('/logout',checkLogin,function(req,res){
-    req.session.user = null;
-    req.flash('success','退出成功');
-    return res.redirect('/');
+    app.get('/logout', checkLogin, function (req, res) {
+        req.session.user = null;
+        req.flash('success', '退出成功');
+        return res.redirect('/');
     })
     //文件上传的页面
-    app.get('/upload',checkLogin,function(req,res){
-        res.render('upload',{
-            title:'文件上传',
-            user:req.session.user,
-            success:req.flash('success').toString(),
-            error:req.flash('error').toString()
+    app.get('/upload', checkLogin, function (req, res) {
+        res.render('upload', {
+            title: '文件上传',
+            user: req.session.user,
+            success: req.flash('success').toString(),
+            error: req.flash('error').toString()
         })
 
     })
 
     //文件上传的行为
-    app.post('/upload',checkLogin,upload.array('field1',5),function(req,res){
-        req.flash('success','文件上传成功');
+    app.post('/upload', checkLogin, upload.array('field1', 5), function (req, res) {
+        req.flash('success', '文件上传成功');
         res.redirect('/upload');
     })
     //用户发布的所有文章
-    app.get('/u/:name',function (req,res) {
+    app.get('/u/:name', function (req, res) {
         //1.先获取到要查询的用户姓名
         var name = req.params.name;
+        //获取当前传递的页数
+        var page = parseInt(req.query.page) || 1;
         //2.查询用户名是否存在
-        User.get(name,function(err,user){
-            if(err){
-                req.flash('err','该用户名不存在')
+        User.get(name, function (err, user) {
+            if (err) {
+                req.flash('err', '该用户名不存在')
                 return res.redirect('/');
             }
             //3.查询该用户下的所有文章
-            Post.getAll(user.name,function(err,posts){
-                if(err){
-                    req.flash('error',err);
+            Post.getTen(user.name,page, function (err, posts,total) {
+                if (err) {
+                    req.flash('error', err);
                     return res.redirect('/');
                 }
-                res.render('user',{
-                    title:user.name,
-                    user:req.session.user,
-                    success:req.flash('success').toString(),
-                    error:req.flash ('error').toString(),
-                    posts:posts
+                res.render('user', {
+                    title: user.name,
+                    user: req.session.user,
+                    page:page,
+                    total:total,
+                    pagetotal: Math.ceil(total/2),
+                    isFirstPage:(page - 1) ==0,
+                    isLastPage:((page - 1) * 5 + posts.length) ==total,
+                    success: req.flash('success').toString(),
+                    error: req.flash('error').toString(),
+                    posts: posts
                 })
             })
         })
     })
 
     //文章的详情页面
-    app.get('/u/:name/:minute/:title',function(req,res){
-        Post.getOne(req.params.name,req.params.minute,req.params.title,function (err,post){
+    app.get('/u/:name/:minute/:title', function (req, res) {
+        Post.getOne(req.params.name, req.params.minute, req.params.title, function (err, post) {
+            if (err) {
+                req.flash('error', err);
+                return res.redirect('/');
+            }
+            res.render('article', {
+                title: post.title,
+                user: req.session.user,
+                success: req.flash('success').toString(),
+                error: req.flash('error').toString(),
+                post: post
+            })
+        })
+    })
+    //编辑页面
+    app.get('/edit/:name/:minute/:title', checkLogin, function (req, res) {
+        var currentUser = req.session.user;//session保存的是登录的用户信息
+        Post.edit(currentUser.name, req.params.minute, req.params.title, function (err, post) {
+            if (err) {
+                req.flash('error', err);
+                return res.redirect('back');
+            }
+            res.render('edit', {
+                title: post.title,
+                user: req.session.user,
+                success: req.flash('success').toString(),
+                error: req.flash('error').toString(),
+                post: post
+            })
+        })
+    })
+    //编辑行为
+    app.post('/edit/:name/:minute/:title', checkLogin, function (req, res) {
+        Post.update(req.params.name
+
+            , req.params.minute, req.params.title, req.body.post, function (err) {
+                var url = encodeURI('/u/' + req.params.name
+
+                    + '/' + req.params.minute + '/' + req.params.title);
+                if (err) {
+                    req.flash('error', err);
+                    return res.redirect(url);
+                }
+                req.flash('success', '编辑成功');
+                return res.redirect(url);
+            })
+    })
+    //删除行为
+    app.get('/remove/:name/:minute/:title',function(req,res){
+        var currentUser = req.session.user;
+        Post.remove(currentUser.name,req.params.minute,req.params.title,function(err){
+            if(err){
+                req.flash('error',err);
+                return res.redirect('back');
+            }
+            req.flash('success','删除成功');
+            return res.redirect('/');
+        })
+    })
+
+    //留言功能
+    app.post('/comment/:name/:minute/:title',function(req,res){
+        var date = new Date();
+        var time = date.getFullYear() + "-" + (date.getMonth() + 1) + "-" +
+            date.getDate() + " " + date.getHours() + ":" +
+            (date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes());
+
+        var comment = {
+            name:req.body.name,
+            time:time,
+            content:req.body.content
+        }
+        var newComment = new Comment(req.params.name,req.params.minute,req.params.title,comment);
+        newComment.save(function(err){
+            if(err){
+                req.flash('error',err);
+                return res.redirect('back');
+            }
+            req.flash('success','留言成功');
+            res.redirect('back');
+        })
+    })
+    //存档的页面
+    app.get('/archive',function (req,res){
+        Post.getArchive(function (err,posts){
             if(err){
                 req.flash('error',err);
                 return res.redirect('/');
             }
-            res.render('article',{
-                title:post.title,
+            res.render('archive',{
+                title:'存档页面',
                 user:req.session.user,
                 success:req.flash('success').toString(),
                 error:req.flash('error').toString(),
-                post:post
+                posts:posts
+            })
+        })
+    })
+        //所有的标签页面
+    app.get('/tags',function(req,res){
+        Post.getTags(function(err,posts){
+            if(err){
+                req.flash('error',err);
+                return res.redirect('/');
+            }
+            res.render('tags',{
+                title:'标签',
+                posts:posts,
+                user:req.session.user,
+                success:req.flash('success').toString(),
+                error:req.flash('error').toString()
+            })
+        })
+    })
+    //标签对应的文章列表
+    app.get('/tags/:tag',function(req,res){
+        Post.getTag(req.params.tag,function(err,posts){
+            if(err){
+                req.flash('error',err);
+                return res.redirect('/');
+            }
+            res.render('tag',{
+                title:'Tag:'+req.params.tag,
+                user:req.session.user,
+                success:req.flash('success').toString(),
+                error:req.flash('error').toString(),
+                posts:posts
+            })
+        })
+    })
+    //搜索的页面
+    app.get('/search',function(req,res){
+        Post.search(req.query.keyword,function(err,posts){
+            if(err){
+                req.flash('error',err);
+                return res.redirect('/');
+            }
+            res.render('search',{
+                title:req.query.search,
+                user:req.session.user,
+                success:req.flash('success').toString(),
+                error:req.flash('error').toString(),
+                posts:posts
             })
         })
     })
